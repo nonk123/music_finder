@@ -3,5 +3,5 @@ from django.urls import path
 from .views import search
 
 urlpatterns = [
-    path('', search)
+    path('<query>/<int:max_results>/', search)
 ]
