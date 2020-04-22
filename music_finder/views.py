@@ -1,4 +1,4 @@
-from django.http import JsonResponse
+from django.http import JsonResponse, HttpResponseBadRequest
 
 from youtube_search import YoutubeSearch
 from pytube import YouTube
@@ -15,7 +15,7 @@ def get_info(link):
 
 def search(request, query, max_results):
     if max_results < 1:
-        raise ValueError("`max_results' must be > 0")
+        return HttpResponseBadRequest("`max_results' must be > 0")
 
     results = YoutubeSearch(query, max_results).to_dict()
     links = ["https://youtube.com/" + r["link"] for r in results]
