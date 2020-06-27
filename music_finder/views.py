@@ -1,34 +1,63 @@
-from django.http import JsonResponse, HttpResponseBadRequest
+from django.http import JsonResponse
 
-from youtube_search import YoutubeSearch
-from youtube_dl import YoutubeDL
+from pyquery import PyQuery as pq
+import urllib.parse
+
+from pytube import YouTube
 
 from multiprocessing import Pool
+from os import cpu_count
 
-ydl_params = {
-    "format": "bestaudio/mp4",
-    "noplaylist": True,
-}
+def get_info(tup):
+    query, link = tup
 
-def get_info(link):
-    with YoutubeDL(ydl_params) as ydl:
-        try:
-            info = ydl.extract_info(link, download=False)
-        except:
-            return None
+    try:
+        info = YouTube(link).streams.get_audio_only()
+    except:
+        return None
+    else:
+        return {
+            "title": query if info.title == "YouTube" else info.title,
+            "url": info.url
+        }
 
-    return {
-        "title": info["title"],
-        "url": info["url"]
-    }
+def search_youtube(query, max_results):
+    if max_results > 100:
+        raise ValueError("Can't find this many")
+    elif max_results < 1:
+        raise ValueError("Must be greater than zero")
+
+    encoded_query = urllib.parse.quote(query)
+
+    found = 0
+    page = 1
+
+    while found < max_results:
+        url = f"https://youtube.com/results?search_query={encoded_query}&page={page}"
+
+        empty = True
+
+        for title in pq(url=url)("div.yt-lockup-content .yt-uix-tile-link"):
+            found += 1
+
+            if found > max_results:
+                break
+
+            empty = False
+
+            yield query, "https://youtube.com" + pq(title).attr("href")
+
+        if empty:
+            break
+
+        page += 1
 
 def search(request, query, max_results):
-    if max_results < 1:
-        return HttpResponseBadRequest("`max_results' must be > 0")
+    links = search_youtube(query, max_results)
 
-    results = YoutubeSearch(query, max_results).to_dict()
-    links = ["https://youtube.com/" + r["link"] for r in results]
+    processes = cpu_count() * 4
 
-    with Pool() as pool:
+    with Pool(processes) as pool:
         results = [result for result in pool.map(get_info, links) if result]
-        return JsonResponse({"results": results})
+
+    return JsonResponse({"results": results})
