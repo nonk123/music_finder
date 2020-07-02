@@ -1,3 +1,4 @@
 django
 fast_youtube_search
+pathos
 git+https://gitlab.com/obuilds/public/pytube@ob-v1
